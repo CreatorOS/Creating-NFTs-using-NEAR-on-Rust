@@ -210,7 +210,7 @@ cp ../target/wasm32-unknown-unknown/release/nearnft.wasm ../result/result.wasm
 
 ```
 
-This will compile your contract and copy the resulting .wasm to a result directory, were you can view it easier. Create the result directory before running this bash script, inside of scripts.
+This will compile your contract and copy the resulting .wasm to a result directory, were you can view it easier. Create the result directory before running this bash script. Now run ``` sh build.sh ```. You will have to wait a bit, this command will install some dependencies first.
 
 Now let's deploy. Create a deploy.sh and add this:
 
@@ -237,7 +237,7 @@ near view $CONTRACT get_owner '{"token_id": "firstNFT"}'
 ```
 
 replace you.testnet with your account ID. 
-Can you guess what that view call will return? Yep, your NEAR account ID (you.testnet).
+Can you guess what that view call will return? Yep, your NEAR account ID (you.testnet). Run it to view the result.
 Cool? Now let's see how to test this thing.
 
 ## Testing the contract:
