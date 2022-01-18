@@ -1,13 +1,13 @@
-# Creating NFTs using NEAR on Rust
-Near supports multiple programming languages. At the time of this writing the most recommended programming language for creating contracts is Rust. Near supports Rust, AssemblyScript that is very similar to Typescript and Solidity that is used in Ethereum too. 
-
-However the support is best documented and maintained in Rust making it a good choice for writing code on Near inspite of it’s steep learning curve. However, many other blockchains like Solana also use Rust. So building some muscle on writing contracts in Rust is a good idea for developers looking to break into crypto.
+# Creating simple NFTs using NEAR on Rust
+Near supports multiple programming languages. At the time of this writing the most recommended programming language for creating contracts is Rust. 
+The support is best documented and maintained in Rust making it a good choice for writing code on Near inspite of it’s steep learning curve. However, many other blockchains like Solana also use Rust. So building some muscle on writing contracts in Rust is a good idea for developers looking to break into crypto.
 
 NEAR contracts written in Rust are smaller, cheaper and more secure. 
 
 We require you to have gone through the basics of NEAR track on [https://questbook.app](https://questbook.app) before we dive into Rust based programming of smart contracts. Writing code on Assembly Script is definitely easier for the uninitialized.
 
-In this quest, we’ll start building an NFT. We’ll introduce you to the tools that are required to build and some basic programming. We will be writing code for the actual NFT itself in the next quest.
+In this quest, we’ll start building a simple NFT. We’ll introduce you to the tools that are required to build and some basic programming. We will be writing code for the actual NFT itself in the next quest.
+
 ## Setting up Rust
 We first need to install Rust. 
 
@@ -28,6 +28,7 @@ rustup target add wasm32-unknown-unknown
 ```
 
 Once this is successfully installed, you are ready to start building.
+
 ## Setting up the project
 First up lets create a directory for where we’ll write our first NEAR contract project. 
 
@@ -55,12 +56,10 @@ Add the following to your `Cargo.toml`
 
 ```
 
-\[lib\]
+[lib]
+crate-type = ["cdylib", "rlib"]
 
-crate-type = \["cdylib", "rlib"\]
-
-\[dependencies\]
-
+[dependencies]
 near-sdk = "3.1.0"
 
 ```
@@ -72,9 +71,7 @@ Now let’s open up `src/lib.rs` and replace the contents with the following imp
 ```
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-
-use near_sdk::{env, near_bindgen};
-
+use near_sdk::{near_bindgen, AccountId};
 near_sdk::setup_alloc!();
 
 ```
@@ -82,6 +79,7 @@ near_sdk::setup_alloc!();
 We will also need to import the serializing libraries so that we are able to convert our variables into data that will be permanently stored on the blockchain. 
 
 With this we’re good to start writing our core logic.
+
 ## Defining an NFT
 For this quest we will create a super simple NFT data structure, and improve it to adhere to standards over the next few quests. 
 
@@ -90,9 +88,7 @@ Let us first define our NFT datastructure. It is a very simple mapping between t
 ```
 
 pub struct NftOwners {
-
-  owners: UnorderedMap;
-
+    owners: UnorderedMap<String, AccountId>,
 }
 
 ```
@@ -100,6 +96,7 @@ pub struct NftOwners {
 We’ll assume that the token Id and the owner’s address are both going to be strings. 
 
 We’ll use the UnorderedMap which is nothing but a dictionary but recognized by Near’s blockchain.
+
 ## Making the data blockchain friendly
 Now that we’ve created our datastructure, we need to make it storable on the blockchain. 
 
@@ -113,17 +110,16 @@ use near_sdk::collections::UnorderedMap;
 
 ```
 
-And lastly, make the data serializable using the following decorators
+And lastly, make the data serializable using the following decorators:
 
 ```
 
-\#\[near_bindgen\]
+#[near_bindgen]
+#[derive(BorshDeserialize, BorshSerialize)]
 
-\#\[derive(BorshDeserialize, BorshSerialize)\]
+pub struct NftOwners {
 
-pub struct NftOwnership {
-
-  owners: UnorderedMap
+ owners: UnorderedMap<String, AccountId>,
 
 }
 
@@ -147,24 +143,19 @@ Every contract being a part of an account also has the native support to handle 
 The storage is independent of the contract space. So, we need to make sure that the contract stores the information in a way that is consistent and usable even outside of the contract. Remember all the data on the blockchain is public information.
 
 So, to make it storable in the storage part of the account, we need to create a struct that is serializable. The struct is stored in a serializable way. So when we want to alter the `owners` variable the near-runtime will pull the data from the storage space, deserialize it, make the modifications, serialize it and store it back in the storage.
+
 ## The logic
 First up we need to create a default for our NftOwners struct
 
 ```
 
 impl Default for NftOwners {
-
-  fn default() -> Self {
-
-    Self { 
-
-        owners: UnorderedMap::new(b“o”.to_vec())
-
+    fn default() -> Self {
+        Self {
+            owners: UnorderedMap::new(b"o"),
+        }
     }
-
-  }
-
-} 
+}
 
 ```
 
@@ -176,24 +167,19 @@ When we create a new `UnorderedMap` we also need to provide an identifier `”o�
 
 ```
 
-\#\[near_bindgen\]
-
+#[near_bindgen]
 impl NftOwners {
+    pub fn set_owner(&mut self, token_id: String, account_id: AccountId) {
+        self.owners.insert(&token_id, &account_id);
+    }
 
-  pub fn setOwner(&mut self, tokenId: String, accountId: String){
-
-    self.owners.insert(&tokenId, &accountId);
-
-  }
-
-pub fn getOwner(&self, tokenId: String) -> Option {
-
-    return self.owners.get(&tokenId);
-
-  }
-
+    pub fn get_owner(&self, token_id: String) -> AccountId {
+        match self.owners.get(&token_id) {
+            Some(owner) => owner,
+            None => "No owner found".to_string(),
+        }
+    }
 }
-
 ```
 
 Here we’ve created the two functions to set and get the owners of a said NFT.
@@ -208,62 +194,120 @@ You’ll notice that the `setOwner` uses `&mut self` whereas `getOwner` uses `&s
 
 This is because if you have to make any alterations to a variable in Rust you must use the `mut` keyword, standing for mutable. In `setOwner` we will be updating the dictionary, so we need that to be mutable. 
 
-The return type of `getOwner` is `Option` meaning it can be a `String` or a `null`.
-
 Great, now we’ve written our first contract! Lets compile and deploy this!
-## Deploy the contract
-First compile the contract using 
+
+## Compiling, deploying, and calling the contract:
+Now go to your project root, create a scripts directory, and cd into it. 
+Here we will write a bunch of .sh files to do the job.
+Create a build.sh, and add the follwing to it:
 
 ```
 
-env 'RUSTFLAGS=-C link-arg=-s' 
-
+!#/bin/bash
+env 'RUSTFLAGS=-C link-arg=-s'
 cargo build --target wasm32-unknown-unknown --release
+cp ../target/wasm32-unknown-unknown/release/nearnft.wasm ../result/result.wasm
 
 ```
 
-Basically telling rust to compile it using the wasm toolchain. 
+This will compile your contract and copy the resulting .wasm to a result directory, were you can view it easier. Create the result directory before running this bash script, inside of scripts.
 
-This will create a wasm file in `targets/wasm32-unknown-unknown/release`
-
-To deploy this `wasm` file, 
+Now let's deploy. Create a deploy.sh and add this:
 
 ```
 
-near dev-deploy --wasmFile target/wasm32-unknown-unknown/release/nearnft.wasm 
+near dev-deploy --wasmFile ../result/result.wasm
+
+```
+Run it, grab this ``` dev-***-*** ```, this is the most important thing now. 
+Of course, export a $CONTRACT with your contract's ID so we can use it when calling functions, it is just more convenient.
+
+``` export CONTRACT=dev-***-*** ```
+
+Now run 
+``` near login ```
+So you can interact with the contract. Give access from your browser and let's move on.
+Create a use-contract.sh, add the following:
 
 ```
 
-This will deploy the contract to the test network
-
-![](https://qb-content-staging.s3.ap-south-1.amazonaws.com/public/fb231f7d-06af-4aff-bca3-fd51cb633f77/b0908d28-b9e9-4222-8c68-f645effc41d5.jpg)
-
-You should see the link to the deployed contract on the console. This is called a deployment transaction. There are a few other kinds of transactions like transfer (of tokens) and function calls.  The account ID here is the contract name. Remember that an account can have utmost one contract. So, to identify a contract it is enough to identify it by the account ID. Copy this and keep it handy, we’ll refer to this as `CONTRACT_NAME` when we need to use it. 
-
-To be able to make function call transactions you need an account. 
-
-On your commandline enter 
+near call $CONTRACT set_owner '{"token_id": "firstNFT", "account_id" : "you.testnet"}' --accountId "you.testnet"
+near view $CONTRACT get_owner '{"token_id": "firstNFT"}' 
 
 ```
 
-near login
+replace you.testnet with your account ID. 
+Can you guess what that view call will return? Yep, your NEAR account ID (you.testnet).
+Cool? Now let's see how to test this thing.
+
+## Testing the contract:
+Add these to lib.rs:
 
 ```
 
-After a successful login, the public and private keys will be stored in your machine at `~/near-credentials/testnet/yourname.testnet`
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use near_sdk::MockedBlockchain;
+    use near_sdk::{testing_env, VMContext};
+    fn get_context(predecessor_account_id: String, storage_usage: u64) -> VMContext {
+        VMContext {
+            current_account_id: "alice.testnet".to_string(),
+            signer_account_id: "jane.testnet".to_string(),
+            signer_account_pk: vec![0, 1, 2],
+            predecessor_account_id,
+            input: vec![],
+            block_index: 0,
+            block_timestamp: 0,
+            account_balance: 0,
+            account_locked_balance: 0,
+            storage_usage,
+            attached_deposit: 0,
+            prepaid_gas: 10u64.pow(18),
+            random_seed: vec![0, 1, 2],
+            is_view: false,
+            output_data_receivers: vec![],
+            epoch_height: 19,
+        }
+    }
 
-Now that you have deployed the contract and have an account, you can interact with it using 
+    #[test]
+    fn set_owner() {
+        let context = get_context("you.testnet".to_string(), 0);
+        testing_env!(context);
+        let mut contract = NftOwners::default();
+        let my_token = "my_token".to_string();
+        let owner_account_id = "you.testnet".to_string();
+        contract.set_owner(my_token.clone(), owner_account_id.clone());
+        let owner_of_nft = contract.get_owner(my_token);
+        assert_eq!(owner_of_nft, owner_account_id);
+    }
+}
+
+```
+Looks scary? Don't worry. See that getContext() function? This is just a boilerplate that sets up a mock blockchain for you to test on. The real work is in set_owner(). You can see that we just created a token and asserted that the contract stored the right owner.
+Run this to trigget the test:
 
 ```
 
-near call CONTRACT_NAME setOwner '{"tokenId": "firstNFT", "owner" : "madhavan.testnet"}' --accountId yourname.testnet
+cargo test -- --nocapture
 
 ```
 
-Notice the way to pass parameters is in the form of a JSON. 
+You should get something like this:
 
-Lastly,  you should also be able to call the getOwner function right after this!
+```
+
+running 1 test
+test tests::set_owner ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+```
+And that is about it!
+
 ## What Next?
-Great stuff - you’ve created a contract using rust and deployed it. 
+Great stuff - you’ve created a contract using rust, deployed it, and tested it. 
 
 In the next quest, we’ll be looking at how we can make the contract more robust and adhering to the standards laidout by the NEAR community :)
